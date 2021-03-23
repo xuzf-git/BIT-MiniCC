@@ -2,7 +2,7 @@
  * @Description: C语言词法分析器
  * @Author: xuzf
  * @Date: 2021-03-21 21:28:29
- * @FilePath: \BIT-MiniCC\main.cpp
+ * @FilePath: \BIT-MiniCC\src\Scanner.cpp
  */
 
 #include <fstream>
