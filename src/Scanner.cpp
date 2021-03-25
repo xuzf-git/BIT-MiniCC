@@ -72,9 +72,10 @@ private:
     vector<string> srcLines;
     int row, col;
     int iTknNum;
+    int pos;
 
     void readFile(string &inputFilePath);
-    static void writeFile(const string &strTokens, const string &inputFilePath);
+    static void writeFile(const string &strTokens, const string &outputFilePath);
     char getNextChar();
     static string ch2String(char ch);
     static bool isDigit(const char &ch);
@@ -84,12 +85,12 @@ private:
     bool isAlphaOrDigit(const char &ch) const;
     string genToken(const string &lexme, const string &type);
     string genToken2(const string &lexme, const string &type);
-    string genToken(const string &lexme, const string &type, int col, int row);
+    string genToken(const string &lexme, const string &type, int col, int row, int pos);
 
 public:
     Scanner();
     ~Scanner();
-    void run(string &inputFilePath);
+    void run(string &inputFilePath, string &outputFilePath);
 };
 
 Scanner::Scanner()
@@ -98,6 +99,8 @@ Scanner::Scanner()
     row = 0, col = 0;
     // 初始化token个数
     iTknNum = 0;
+    // 初始化 token 在源代码中的位置
+    pos = -1;
     // 定义关键词集合
     keywordSet = {
         "auto",
@@ -157,11 +160,9 @@ void Scanner::readFile(string &inputFilePath)
     fin.close();
 }
 
-void Scanner::writeFile(const string &strTokens, const string &inputFilePath)
+void Scanner::writeFile(const string &strTokens, const string &outputFilePath)
 {
     // 打开输出文件
-    size_t pos = inputFilePath.find_last_of('.');
-    string outputFilePath = inputFilePath.substr(0, pos) + ".tokens";
     fstream fout(outputFilePath, ios::out | ios::trunc);
     if (!fout)
     {
@@ -184,11 +185,13 @@ char Scanner::getNextChar()
             {
                 ch = line[col];
                 col++;
+                pos++;
                 break;
             }
             else
             {
                 row++;
+                pos += 2;
                 col = 0;
             }
         }
@@ -234,30 +237,31 @@ bool Scanner::isAlphaOrDigit(const char &ch) const
 
 string Scanner::genToken(const string &lexme, const string &type)
 {
-    return genToken(lexme, type, this->col - 1, this->row);
+    return genToken(lexme, type, this->col - 1, this->row, this->pos);
 }
 
 string Scanner::genToken2(const string &lexme, const string &type)
 {
-    return genToken(lexme, type, this->col - 2, this->row);
+    return genToken(lexme, type, this->col - 2, this->row, this->pos - 1);
 }
 
-string Scanner::genToken(const string &lexme, const string &type, int icol, int irow)
+string Scanner::genToken(const string &lexme, const string &type, int icol, int irow, int ipos)
 {
     string strToken;
 
     if (icol <= 0)
     {
         irow--;
-        icol = this->srcLines[irow].length();
+        ipos -= 2;
+        icol = this->srcLines[irow].length() - 1;
     }
-    strToken += "[@" + to_string(iTknNum) + "," + to_string(icol - lexme.size() + 1) + ":" + to_string(icol) + "='";
+    strToken += "[@" + to_string(iTknNum) + "," + to_string(ipos - lexme.size() + 1) + ":" + to_string(ipos) + "='";
     strToken += lexme + "',<" + type + ">," + to_string(irow + 1) + ":" + to_string(icol - lexme.size() + 1) + "]\n";
     iTknNum++;
     return strToken;
 }
 
-void Scanner::run(string &inputFilePath)
+void Scanner::run(string &inputFilePath, string &outputFilePath)
 {
     cout << "Scanning..." << endl;
 
@@ -320,33 +324,61 @@ void Scanner::run(string &inputFilePath)
                 state = DFA_STATE_INITIAL;
             }
             else if (ch == '+')
+            {
                 state = DFA_STATE_ADD;
+            }
             else if (ch == '-')
+            {
                 state = DFA_STATE_MINUS;
+            }
             else if (ch == '&')
+            {
                 state = DFA_STATE_AND;
+            }
             else if (ch == '*')
+            {
                 state = DFA_STATE_MUT;
+            }
             else if (ch == '!')
+            {
                 state = DFA_STATE_SIGN;
+            }
             else if (ch == '/')
+            {
                 state = DFA_STATE_DIVI;
+            }
             else if (ch == '%')
+            {
                 state = DFA_STATE_PERCENT_0;
+            }
             else if (ch == '<')
+            {
                 state = DFA_STATE_LESS_0;
+            }
             else if (ch == '>')
+            {
                 state = DFA_STATE_GREATER_0;
+            }
             else if (ch == '=')
+            {
                 state = DFA_STATE_EQUAL;
+            }
             else if (ch == '^')
+            {
                 state = DFA_STATE_POWER;
+            }
             else if (ch == '|')
+            {
                 state = DFA_STATE_OR;
+            }
             else if (ch == ':')
+            {
                 state = DFA_STATE_COLON;
+            }
             else if (ch == '#')
+            {
                 state = DFA_STATE_HASHTAG;
+            }
             else if (ch == ' ')
             {
             }
@@ -889,12 +921,12 @@ void Scanner::run(string &inputFilePath)
             }
             else if (ch == '=' || ch == '>')
             {
-                strTokens += genToken("%:", "'%:'", col - 3, row);
+                strTokens += genToken("%:", "'%:'", col - 3, row, this->pos - 3);
                 strTokens += genToken(ch2String('%') + ch, ch2String('\'') + '%' + ch + "'");
             }
             else
             {
-                strTokens += genToken("%:", "'%:'", col - 3, row);
+                strTokens += genToken("%:", "'%:'", col - 3, row, this->pos - 3);
                 strTokens += genToken2("%", "'%'");
                 keep = true;
             }
@@ -967,7 +999,7 @@ void Scanner::run(string &inputFilePath)
             }
             else
             {
-                strTokens += genToken("=", "'='");
+                strTokens += genToken2("=", "'='");
                 keep = true;
             }
             state = DFA_STATE_INITIAL;
@@ -1027,16 +1059,17 @@ void Scanner::run(string &inputFilePath)
         }
     }
 
-    writeFile(strTokens, inputFilePath);
+    writeFile(strTokens, outputFilePath);
 }
 
 int main(int argc, char const *argv[])
 {
-    if (argc != 2)
+    if (argc != 3)
         return 1;
 
     Scanner sc;
     string filename = argv[1];
-    sc.run(filename);
+    string scOutFile = argv[2];
+    sc.run(filename, scOutFile);
     return 0;
 }
